@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Only Self-Help Book - Interactive Mindmap</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for beautiful icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #0b0f19;
+            color: #f3f4f6;
+            overflow: hidden;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .mindmap-container {
+            cursor: grab;
+        }
+        .mindmap-container:active {
+            cursor: grabbing;
+        }
+        .node-connection {
+            transition: stroke 0.3s, stroke-width 0.3s;
+            pointer-events: none;
+        }
+        .node-active {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
+            border-color: #6366f1 !important;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        #mindmap-nodes, #mindmap-svg {
+            transform-origin: 0 0;
+            transition: transform 0.1s cubic-bezier(0.1, 0.8, 0.2, 1);
+        }
+        .dynamic-node {
+            cursor: grab;
+        }
+        .dynamic-node:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row antialiased select-none">
+
+    <!-- SIDEBAR / EXPLORER PANEL -->
+    <aside id="sidebar" class="w-full md:w-80 h-1/3 md:h-full glass-panel border-r border-slate-800 flex flex-col z-20 shrink-0 transition-all duration-300">
+        <!-- Header -->
+        <div class="p-4 border-b border-slate-800 shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-600 rounded-lg text-white">
+                    <i class="fa-solid fa-brain text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-wider text-slate-200 uppercase">Interactive Map</h1>
+                    <span class="text-xs text-indigo-400 font-semibold">THE ONLY SELF-HELP BOOK</span>
+                </div>
+            </div>
+            <!-- Search bar -->
+            <div class="mt-4 relative">
+                <input type="text" id="search-input" placeholder="Search chapters, quotes, concepts..." 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-9 pr-4 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+            </div>
+        </div>
+
+        <!-- Navigation Lists -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4" id="navigation-list">
+            <!-- Dynamic Sections injection -->
+        </div>
+
+        <!-- Progress Tracker -->
+        <div class="p-4 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400 flex justify-between items-center shrink-0">
+            <span>Total Chapters: <strong class="text-indigo-400">61</strong></span>
+            <span>Sections: <strong class="text-indigo-400">10</strong></span>
+        </div>
+    </aside>
+
+    <!-- MINDMAP CANVAS VISUALIZER -->
+    <main class="flex-1 h-2/3 md:h-full relative overflow-hidden bg-[#070a13]">
+        <!-- Controls overlay -->
+        <div class="absolute top-4 left-4 z-40 flex gap-2">
+            <button id="toggle-sidebar" class="w-10 h-10 rounded-lg glass-panel text-indigo-400 hover:text-indigo-200 flex items-center justify-center hover:bg-slate-800/80 transition-all shadow-lg border border-slate-700/50" title="Toggle Sidebar">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <span class="w-[1px] h-10 bg-slate-800 self-center"></span>
+            <button id="zoom-reset" class="w-10 h-10 rounded-lg glass-panel text-slate-300 hover:text-white flex items-center justify-center hover:bg-slate-800/80 transition-all shadow-lg border border-slate-700/50" title="Reset Camera">
+                <i class="fa-solid fa-arrows-to-dot"></i>
+            </button>
+        </div>
+
+        <div class="absolute top-4 right-4 z-40 flex gap-2">
+            <button id="btn-expand-all" class="px-3 h-10 rounded-lg glass-panel text-xs font-medium text-slate-300 hover:text-white flex items-center gap-2 hover:bg-slate-800/80 transition-all shadow-lg border border-slate-700/50">
+                <i class="fa-solid fa-folder-open"></i> Expand All
+            </button>
+            <button id="btn-collapse-all" class="px-3 h-10 rounded-lg glass-panel text-xs font-medium text-slate-300 hover:text-white flex items-center gap-2 hover:bg-slate-800/80 transition-all shadow-lg border border-slate-700/50">
+                <i class="fa-solid fa-folder"></i> Collapse All
+            </button>
+        </div>
+
+        <!-- Canvas Area -->
+        <div id="mindmap-workspace" class="w-full h-full mindmap-container relative origin-center">
+            <!-- SVG connecting lines layer -->
+            <svg id="mindmap-svg" class="absolute inset-0 w-[4000px] h-[4000px] pointer-events-none z-0"></svg>
+            
+            <!-- Nodes Layer -->
+            <div id="mindmap-nodes" class="absolute inset-0 w-[4000px] h-[4000px] z-10">
+                <!-- Center Core Node -->
+                <div id="core-node" class="absolute rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 p-[1px] shadow-[0_0_50px_rgba(99,102,241,0.3)] select-none">
+                    <div class="px-6 py-4 bg-slate-950 rounded-2xl flex flex-col items-center justify-center text-center">
+                        <i class="fa-solid fa-ring text-pink-500 text-2xl mb-2 animate-pulse"></i>
+                        <span class="text-xs font-bold uppercase tracking-widest text-indigo-400">Master Core</span>
+                        <h2 class="text-sm font-black tracking-tight text-white uppercase mt-0.5 whitespace-nowrap">The Only Self-Help Book</h2>
+                    </div>
+                </div>
+
+                <!-- Dynamic Nodes will be dynamically injected here via JS -->
+            </div>
+        </div>
+
+        <!-- CENTERED DIALOG MODAL -->
+        <div id="detail-panel" class="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300 opacity-0 pointer-events-none">
+            <!-- Modal Card container -->
+            <div class="modal-card relative w-full max-w-lg bg-slate-900/95 border rounded-2xl shadow-2xl p-6 md:p-8 transform scale-95 transition-all duration-300 flex flex-col max-h-[90vh]">
+                <!-- Close trigger -->
+                <button id="close-detail" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg transition-colors p-2 hover:bg-slate-800/50 rounded-full" title="Close modal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                
+                <!-- Content Frame -->
+                <div id="detail-content" class="space-y-4 flex-1 overflow-y-auto pr-1">
+                    <div class="flex items-center gap-2">
+                        <span id="detail-type-badge" class="px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase">Chapter</span>
+                        <span id="detail-chapter-num" class="text-xs font-mono text-slate-400">CH 01</span>
+                    </div>
+                    <h3 id="detail-title" class="text-xl md:text-2xl font-black text-white leading-snug"></h3>
+                    
+                    <!-- TAB BAR -->
+                    <div class="flex border-b border-slate-800 gap-4">
+                        <button id="tab-overview" class="pb-2 text-xs font-bold uppercase tracking-wider border-b-2 border-transparent transition-colors">Overview</button>
+                        <button id="tab-ai" class="pb-2 text-xs font-bold uppercase tracking-wider border-b-2 border-transparent transition-colors flex items-center gap-1.5">
+                            <span>✨ AI Companion</span>
+                        </button>
+                    </div>
+
+                    <!-- OVERVIEW PANEL -->
+                    <div id="panel-overview" class="space-y-4">
+                        <!-- Click-to-Copy Blockquote -->
+                        <div id="quote-container" class="p-5 bg-slate-950/80 rounded-xl border border-slate-800/80 italic text-sm md:text-base text-slate-300 relative group cursor-pointer hover:bg-slate-900/40 transition-colors">
+                            <i class="fa-solid fa-quote-left absolute -top-3 -left-1.5 text-3xl text-slate-800/40 group-hover:text-slate-700/60 transition-colors"></i>
+                            <p id="detail-quote" class="relative z-10 leading-relaxed"></p>
+                            <span id="detail-author" class="block mt-3 text-xs md:text-sm font-semibold not-italic text-right"></span>
+                            
+                            <!-- Hover Tooltip -->
+                            <div id="quote-tooltip" class="absolute right-3 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-[10px] bg-slate-800 border border-slate-700 text-slate-300 px-2 py-0.5 rounded shadow-lg pointer-events-none font-sans not-italic font-medium">
+                                Click to copy quote
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <span id="strategy-header" class="text-[10px] font-bold uppercase tracking-widest block">Action Strategy</span>
+                            <p id="detail-desc" class="text-sm text-slate-300 leading-relaxed"></p>
+                        </div>
+                    </div>
+
+                    <!-- ✨ GEMINI POWERED AI PANEL -->
+                    <div id="panel-ai" class="space-y-4 hidden">
+                        <div class="flex gap-2">
+                            <button id="btn-generate-workbook" class="flex-1 py-2 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-lg">
+                                <i class="fa-solid fa-wand-magic-sparkles animate-pulse"></i> ✨ Generate Reflection Workbook
+                            </button>
+                        </div>
+
+                        <!-- AI Output Window -->
+                        <div id="ai-output-box" class="p-4 bg-slate-950/90 border border-slate-800/80 rounded-xl text-xs leading-relaxed text-slate-300 max-h-56 overflow-y-auto space-y-3 relative min-h-[80px] flex flex-col justify-center">
+                            <div id="ai-placeholder" class="text-center text-slate-500 italic">
+                                Tap the button above to synthesize custom ACT / Stoic writing prompts tailored specifically to this chapter.
+                            </div>
+                            <div id="ai-spinner" class="hidden flex flex-col items-center justify-center space-y-2">
+                                <div class="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                <span class="text-[10px] font-mono tracking-wider text-slate-400">CONNECTING TO INNER GUIDE...</span>
+                            </div>
+                            <div id="ai-text-content" class="hidden text-left space-y-2 select-text"></div>
+                        </div>
+
+                        <!-- Mini Consult Chat Input -->
+                        <div class="pt-2 border-t border-slate-800/80">
+                            <label id="consult-header" class="text-[9px] font-bold uppercase tracking-widest block mb-1.5">✨ Consult Your Inner Guide</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="ai-chat-input" placeholder="Ask a question about this chapter..." class="flex-1 bg-slate-950 border border-slate-800/80 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-slate-500 transition-colors">
+                                <button id="ai-chat-submit" class="px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap">
+                                    ✨ Consult
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Next/Prev Custom Segment Navigation -->
+                <div class="flex justify-between items-center pt-4 border-t border-slate-800 mt-6 shrink-0">
+                    <button id="modal-prev" class="px-4 py-2 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fa-solid fa-arrow-left"></i> Previous Chapter
+                    </button>
+                    <button id="modal-next" class="px-4 py-2 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all disabled:bg-slate-800 disabled:text-slate-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                        Next Chapter <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Master Mindmap Script -->
+    <script>
+        const mindmapData = {
+            sections: [
+                {
+                    id: "sec1",
+                    title: "RESET THE MACHINE",
+                    color: "#f43f5e", 
+                    chapters: [
+                        { id: "ch1", num: "1", title: "The Biological Tax on Your Brain", author: "Francis Bacon", quote: "A healthy body is a guest-chamber for the soul; a sick body is a prison.", desc: "Reset your biological baseline to supply your brain with the physiological energy required to sustain mental and emotional changes." },
+                        { id: "ch2", num: "2", title: "Architecting Your Default Decisions", author: "Winston S. Churchill", quote: "We shape our buildings; thereafter they shape us.", desc: "Rearrange your immediate environment so that your desired behaviors become effortless defaults and destructive triggers are rendered invisible." }
+                    ]
+                },
+                {
+                    id: "sec2",
+                    title: "CHOOSE YOUR PRISON",
+                    color: "#f59e0b", 
+                    chapters: [
+                        { id: "ch3", num: "3", title: "The Myth of the Innocent Bystander", author: "Jocko Willink", quote: "Extreme ownership. Leaders must own everything in their world. There is no one else to blame.", desc: "Take absolute responsibility for your behavior, habits, and outcomes instead of blaming your current circumstances." },
+                        { id: "ch4", num: "4", title: "The Subtle Comfort of Having an Excuse", author: "Seneca", quote: "It is not because things are difficult that we do not dare; it is because we do not dare that they are difficult.", desc: "View every result as strictly connected to your personal choices and eliminate excuses to preserve your active agency." },
+                        { id: "ch5", num: "5", title: "Widening the Gap Between Stimulus and Reaction", author: "Viktor E. Frankl", quote: "Between stimulus and response there is a space. In that space is our power to choose our response.", desc: "Actively choose your cognitive and behavioral responses even when you cannot choose the external events themselves." },
+                        { id: "ch6", num: "6", title: "Acceptance Is Not Surrender", author: "Carl Jung", quote: "We cannot change anything until we accept it. Condemnation does not liberate, it oppresses.", desc: "Ground your baseline in what is objectively true before trying to build, strategize, or improve upon it." },
+                        { id: "ch7", num: "7", title: "Slaying the Paralysis of Perfect Information", author: "Theodore Roosevelt", quote: "In any moment of decision, the best thing you can do is the right thing, the next best thing is the wrong thing, and the worst thing you can do is nothing.", desc: "Make swift, definitive choices using the 51% rule of probability to build forward momentum and crush analysis paralysis." }
+                    ]
+                },
+                {
+                    id: "sec3",
+                    title: "REBUILD THE ARCHITECT",
+                    color: "#10b981", 
+                    chapters: [
+                        { id: "ch8", num: "8", title: "Voting for the Person You Want to Become", author: "James Clear", quote: "Every action you take is a vote for the type of person you wish to become.", desc: "Consciously reshape your self-concept and align your daily habits to lock in permanent, long-term behavioral change." },
+                        { id: "ch9", num: "9", title: "Looking into Your Own Heart Without Flinching", author: "Carl Jung", quote: "Your visions will become clear only when you can look into your own heart. Who looks outside, dreams; who looks inside, awakes.", desc: "Learn to objectively observe your thoughts, motives, and emotional triggers while accepting that you won't always please everyone." },
+                        { id: "ch10", num: "10", title: "The Brutal Mirror of Your Daily Choices", author: "Socrates", quote: "An unexamined life is not worth living.", desc: "Establish a recurring personal audit to honestly evaluate your habits, decisions, and trajectory without judgment." },
+                        { id: "ch11", num: "11", title: "Dropping the Need to Be Special", author: "Ralph Waldo Emerson", quote: "To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment.", desc: "Ground your identity in radical self-acceptance and value alignment rather than fluctuating external approval." },
+                        { id: "ch12", num: "12", title: "The Micro-Contracts of Self-Trust", author: "Abraham Joshua Heschel", quote: "Self-respect is the fruit of discipline; the sense of dignity grows with the ability to say no to oneself.", desc: "Build unshakable self-trust and confidence by honoring the small daily commitments you make to yourself." },
+                        { id: "ch13", num: "13", title: "Why Kindness Is a Better Motivator Than Cruelty", author: "Kristin Neff", quote: "With self-compassion, we give ourselves the same kindness and care we'd give to a good friend.", desc: "Base your self-worth on kindness and our common human experience rather than the exhausting roller coaster of social comparison." }
+                    ]
+                },
+                {
+                    id: "sec4",
+                    title: "RECODE THE SOFTWARE",
+                    color: "#06b6d4", 
+                    chapters: [
+                        { id: "ch14", num: "14", title: "The Neurological Reality of Becoming", author: "Carol S. Dweck", quote: "Becoming is better than being.", desc: "Adopt the deep belief that your raw abilities and intelligence can be expanded through deliberate, focused effort." },
+                        { id: "ch15", num: "15", title: "Dethroning Your Internal Dictator", author: "Henry Ford", quote: "Whether you think you can, or you think you can't—you're right.", desc: "Systematically identify and replace deeply rooted automatic negative thoughts with balanced, empowering assertions." },
+                        { id: "ch16", num: "16", title: "Simulating Success to Prime Your Actions", author: "Hal Hershfield", quote: "Visualizing your future self is a powerful way to make choices that serve your long-term success today.", desc: "Mentally practice future success from the perspective of your desired self to prime your nervous system for action." },
+                        { id: "ch17", num: "17", title: "Seeing the Landscape Beyond the Wall", author: "John Milton", quote: "The mind is its own place, and in itself can make a heaven of hell, a hell of heaven.", desc: "Shift your focus toward expanding opportunities, paths, and creative options instead of stopping at perceived obstacles." },
+                        { id: "ch18", num: "18", title: "Stripping the Event of Your Judgment", author: "Epictetus", quote: "People are disturbed not by things, but by the view they take of them.", desc: "Deliberately separate cold, external events from your subjective, emotional judgments about those events." },
+                        { id: "ch19", num: "19", title: "Failing as a Data-Gathering Exercise", author: "Thomas A. Edison", quote: "I have not failed. I've just found 10,000 ways that won't work.", desc: "Treat setbacks and mistakes as neutral, highly valuable data points rather than an indictment of your personal identity." }
+                    ]
+                },
+                {
+                    id: "sec5",
+                    title: "MAP THE HORIZON",
+                    color: "#3b82f6", 
+                    chapters: [
+                        { id: "ch20", num: "20", title: "Finding a Fire That Outlasts the Friction", author: "Friedrich Nietzsche", quote: "He who has a why to live for can bear almost any how.", desc: "Establish a clear, self-defined personal why to navigate difficult times and build a life of genuine significance." },
+                        { id: "ch21", num: "21", title: "The Slow Tragedy of Passive Living", author: "Seneca", quote: "If a man knows not to which port he sails, no wind is favorable.", desc: "Take the wheel of your life and choose a deliberate, proactive path instead of drifting reactively through the days." },
+                        { id: "ch22", num: "22", title: "Drowning Your Ego in Service to Others", author: "Leo Tolstoy", quote: "The sole meaning of life is to serve humanity.", desc: "Channel your skills and personal development into a meaningful contribution that serves others beyond personal gain." },
+                        { id: "ch23", num: "23", title: "Your Compass for When the Map Burns", author: "Roy E. Disney", quote: "When your values are clear to you, making decisions becomes easier.", desc: "Ensure your daily choices reflect your core principles, using them as a stable compass to navigate external transitions." },
+                        { id: "ch24", num: "24", title: "Paying Your Future Self in Advance", author: "Stephen Covey", quote: "The key of prioritizing work: although we can't change the amount of time we have, we can re-prioritize how we spend it, improving well-being and life satisfaction.", desc: "Reduce internal chaos through basic foresight and weigh what your future self will have to pay for today's choices." }
+                    ]
+                },
+                {
+                    id: "sec6",
+                    title: "EXPOSE THE MONSTER",
+                    color: "#6366f1", 
+                    chapters: [
+                        { id: "ch25", num: "25", title: "The Voluntary Descent into Discomfort", author: "Dale Carnegie", quote: "Do the thing you fear to do and keep on doing it... that is the quickest and surest way ever yet discovered to conquer fear.", desc: "Move directly toward what you instinctively avoid to systematically expand your physiological tolerance for discomfort." },
+                        { id: "ch26", num: "26", title: "The Premium You Pay for Growth", author: "T.S. Eliot", quote: "Only those who will risk going too far can possibly find out how far one can go.", desc: "Accept uncertainty and lean into vulnerability when the upside is essential to your personal evolution." },
+                        { id: "ch27", num: "27", title: "Becoming Immune to Other People's Opinions", author: "Marcus Aurelius", quote: "You have no control over other people's opinions, so why let them rule your life?", desc: "Break free from the exhausting need for external validation and build resilience against social disapproval." },
+                        { id: "ch28", num: "28", title: "Building a Bridge While Walking on It", author: "Dale Carnegie", quote: "Inaction breeds doubt and fear. Action breeds confidence and courage.", desc: "Take decisive action and execute your plans without requiring complete predictability or guaranteed outcomes." }
+                    ]
+                },
+                {
+                    id: "sec7",
+                    title: "HEAL THE CRUCIBLE",
+                    color: "#8b5cf6", 
+                    chapters: [
+                        { id: "ch29", num: "29", title: "The Art of Non-Judgmental Witnessing", author: "Nathaniel Branden", quote: "The first step toward change is awareness. The second step is acceptance.", desc: "Learn to acknowledge and name what you feel in the moment without denial, suppression, or immediate self-judgment." },
+                        { id: "ch30", num: "30", title: "Welcoming the Dark Days as Data", author: "Carl Jung", quote: "What you resist persists.", desc: "Treat heavy emotional states as valuable internal data rather than allowing them to dictate your behavior." },
+                        { id: "ch31", num: "31", title: "De-Escalating the Nervous System in Real Time", author: "Thich Nhat Hanh", quote: "Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.", desc: "Deploy physical, science-backed breathing and relaxation tools to rapidly calm a hyperactive stress response." },
+                        { id: "ch32", num: "32", title: "Refusing to Be Hijacked by the Primitive Brain", author: "Elizabeth Kenny", quote: "He who angers you conquers you.", desc: "De-escalate internal volatility by identifying and neutralizing runaway worry, anticipation, and reactive outrage." },
+                        { id: "ch33", num: "33", title: "Bending Like a Willow in the Storm", author: "Robert Jordan", quote: "The oak fought the wind and was broken, the willow bent when it must and survived.", desc: "Shake off disappointment quickly and return to action, sustaining the long-term energy needed to bounce back from adversity." },
+                        { id: "ch34", num: "34", title: "The Art of Falling Toward Your Destination", author: "Henry Ford", quote: "Failure is simply the opportunity to begin again, this time more intelligently.", desc: "Intentionally convert mistakes into practical stepping stones to refine your long-term strategies." },
+                        { id: "ch35", num: "35", title: "Unchaining Yourself from Your Past Mistakes", author: "Lewis B. Smedes", quote: "To forgive is to set a prisoner free and discover that the prisoner was you.", desc: "Actively release self-blame, guilt, and lingering resentment to reclaim your cognitive and emotional energy." },
+                        { id: "ch36", num: "36", title: "The Non-Linear Geometry of Loss", author: "Robert Frost", quote: "The only way out is through.", desc: "Honor the natural, messy, and non-linear process of loss without forcing a timeline or suppressing your pain." }
+                    ]
+                },
+                {
+                    id: "sec8",
+                    title: "DRAW THE LINE",
+                    color: "#ec4899", 
+                    chapters: [
+                        { id: "ch37", num: "37", title: "The Elegant Art of Selective Refusal", author: "Josh Billings", quote: "Half of the troubles of this life can be traced to saying yes too quickly and not saying no soon enough.", desc: "Protect your focus by comfortably declining requests or commitments that conflict with your core priorities." },
+                        { id: "ch38", num: "38", title: "Ruthless Allocation of Your Attention Bank", author: "Jim Loehr", quote: "Energy, not time, is the fundamental currency of high performance.", desc: "Intentionally choose where to invest your finite cognitive resources while systematically ignoring trivial worries." },
+                        { id: "ch39", num: "39", title: "Dividing Your Burden from Their Judgments", author: "Ichiro Kishimi", quote: "We must distinguish between what is our task and what is the task of others.", desc: "Draw a clear line between your own actions and responsibilities and other people's judgments, reactions, and expectations." },
+                        { id: "ch40", num: "40", title: "Resigning as the Savior of Everyone Else", author: "Melody Beattie", quote: "Care-taking is not the same as caring. One comes from fear, the other from love.", desc: "Refuse to take psychological responsibility for other people's emotional states or make your peace contingent on theirs." },
+                        { id: "ch41", num: "41", title: "Building a Shield, Not a Wall", author: "Eleanor Roosevelt", quote: "No one can make you feel inferior without your consent.", desc: "Prevent other people’s bad moods and erratic behaviors from dictating your internal emotional climate." },
+                        { id: "ch42", num: "42", title: "Reclaiming the Crown of Your Own Life", author: "Marcus Aurelius", quote: "You have power over your mind - not outside events. Realize this, and you will find strength.", desc: "Treat your life as a private domain that you alone govern, making choice and action your ultimate authority." },
+                        { id: "ch43", num: "43", title: "Shedding the Exhausting Mask of People-Pleasing", author: "Brené Brown", quote: "Authenticity is the daily practice of letting go of who we think we're supposed to be and embracing who we are.", desc: "Stop people-pleasing and choose authentic expression over exhausting, superficial social agreement." }
+                    ]
+                },
+                {
+                    id: "sec9",
+                    title: "SURRENDER TO THE NOW",
+                    color: "#14b8a6", 
+                    chapters: [
+                        { id: "ch44", num: "44", title: "Interrupting the Hedonic Treadmill", author: "Aesop", quote: "Gratitude turns what we have into enough.", desc: "Direct your conscious attention toward what is already working well to break the cycle of hedonic adaptation." },
+                        { id: "ch45", num: "45", title: "The Rare Art of Stillness in a Loud World", author: "Socrates", quote: "He who is not contented with what he has, would not be contented with what he would like to have.", desc: "Learn to settle your mind and find true baseline peace without chasing constant external stimulation." },
+                        { id: "ch46", num: "46", title: "Trading Cheap Hits of Dopamine for Deep Worth", author: "Viktor E. Frankl", quote: "Happiness cannot be pursued; it must ensue.", desc: "Prioritize self-actualization, deep purpose, and long-term values over temporary short-term gratification." },
+                        { id: "ch47", num: "47", title: "Escaping the Ghost Worlds of Past and Future", author: "Eckhart Tolle", quote: "Realize deeply that the present moment is all you have. Make the NOW the primary focus of your life.", desc: "Anchor your awareness fully in the present moment instead of living in past regrets or anticipating future anxieties." },
+                        { id: "ch48", num: "48", title: "Logging Out of the Simulated Competition", author: "Theodore Roosevelt", quote: "Comparison is the thief of joy.", desc: "Break the toxic habit of measuring your real, messy life against other people's polished highlight reels." },
+                        { id: "ch49", num: "49", title: "Falling in Love with the Boring Practice", author: "Steve Jobs", quote: "The journey is the reward.", desc: "Discover real, sustainable satisfaction in the daily process of doing the work, not just in hitting the eventual milestone." },
+                        { id: "ch50", num: "50", title: "Crucifying the Need to Be Right", author: "Ryan Holiday", quote: "Ego is the enemy of what you want and of what you have.", desc: "Systematically reduce the exhausting urge to feel special, superior, or constantly defended in front of others." },
+                        { id: "ch51", num: "51", title: "Meeting Human Fragility with Soft Eyes", author: "Dalai Lama", quote: "If you want others to be happy, practice compassion. If you want to be happy, practice compassion.", desc: "Cultivate a kind, supportive response to suffering in yourself and others to foster real human connection." },
+                        { id: "ch52", num: "52", title: "Setting Down the Poisonous Cup", author: "Saint Augustine", quote: "Resentment is like drinking poison and waiting for the other person to die.", desc: "Practice active forgiveness to release toxic feelings and reclaim valuable cognitive energy." },
+                        { id: "ch53", num: "53", title: "Memento Mori: The Ultimate Purifier of Minor Worries", author: "Marcus Aurelius", quote: "You could leave life right now. Let that determine what you do and say and think.", desc: "Use the stark reality of life's limits to instantly strip away trivial anxieties and focus on what truly matters." },
+                        { id: "ch54", num: "54", title: "The Deep Wealth of Shared Presence", author: "Tony Robbins", quote: "The quality of your life is the quality of your relationships.", desc: "Recognize authentic connection as a primary source of well-being and invest consistent time into your core relationships." },
+                        { id: "ch55", num: "55", title: "The Sweet Relief of Final Surrender", author: "Epictetus", quote: "Make the best use of what is in your power, and take the rest as it happens.", desc: "Stop wasting finite energy fighting reality and learn to peacefully release what is beyond your control." }
+                    ]
+                },
+                {
+                    id: "sec10",
+                    title: "PLAY THE INFINITE GAME",
+                    color: "#84cc16", 
+                    chapters: [
+                        { id: "ch56", num: "56", title: "The Quiet Magic of Compound Adjustments", author: "John Wooden", quote: "When you improve a little each day, eventually big things occur.", desc: "Embrace minor, incremental adjustments to compound profound, life-altering growth over time." },
+                        { id: "ch57", num: "57", title: "Fluid Evolution Over Rigid Resistance", author: "Charles Darwin", quote: "It is not the strongest of the species that survives, nor the most intelligent, but the one most responsive to change.", desc: "Adapt your daily behaviors and routines quickly when external circumstances or life environments shift." },
+                        { id: "ch58", num: "58", title: "The Phoenix Principle: Learning to Burn and Rise", author: "Alan Watts", quote: "The only way to make sense out of change is to plunge into it, move with it, and join the dance.", desc: "Intentionally dismantle and rebuild parts of your identity when old patterns and lifestyles stop serving your growth." },
+                        { id: "ch59", num: "59", title: "The Courage to Be Wrong and Update Your Map", author: "John Keynes", quote: "When the facts change, I change my mind. What do you do, sir?", desc: "Remain open-minded and fully willing to revise your beliefs when presented with clearer facts and deeper truths." },
+                        { id: "ch60", num: "60", title: "The Empirical Approach to Living", author: "Ralph Waldo Emerson", quote: "All life is an experiment. The more experiments you make the better.", desc: "Constantly test new personal strategies and build feedback loops to objectively find what works for you." },
+                        { id: "ch61", num: "61", title: "Growth as an Endless Horizon, Not a Destination", author: "Rainer Maria Rilke", quote: "The only journey is the one within.", desc: "View personal growth as a lifelong, permanent evolution rather than a temporary checklist with an end date." }
+                    ]
+                }
+            ]
+        };
+
+        let scale = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let isDraggingCard = false;
+        let draggedNodeId = null;
+        let cardStartX = 0;
+        let cardStartY = 0;
+        let startClientX = 0;
+        let startClientY = 0;
+        let hasMovedDrag = false;
+        let activeNodeId = null;
+        let collapsedSections = new Set();
+        
+        let initialDistance = 0;
+        let initialScale = 1;
+        let initialPanX = 0;
+        let initialPanY = 0;
+
+        let flatChapters = [];
+        let currentFlatIndex = -1;
+
+        // Gemini API Configuration
+        const apiKey = ""; // Injected by preview environment at runtime
+
+        const workspace = document.getElementById('mindmap-workspace');
+        const nodesContainer = document.getElementById('mindmap-nodes');
+        const svgCanvas = document.getElementById('mindmap-svg');
+        const detailPanel = document.getElementById('detail-panel');
+        const navigationList = document.getElementById('navigation-list');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            rebuildFlatChapters();
+            renderSidebarNavigation();
+            initPositions();
+            renderMindmapNodes();
+            setupEventListeners();
+            
+            centerWorkspace();
+            drawConnections();
+            
+            setTimeout(() => {
+                centerWorkspace();
+                drawConnections();
+            }, 100);
+        });
+
+        window.addEventListener('resize', () => {
+            centerWorkspace();
+            drawConnections();
+        });
+
+        function rebuildFlatChapters() {
+            flatChapters = [];
+            mindmapData.sections.forEach(sec => {
+                sec.chapters.forEach(ch => {
+                    flatChapters.push({ ch, sec });
+                });
+            });
+        }
+
+        function initPositions() {
+            const coreNode = document.getElementById('core-node');
+            coreNode.style.left = '2000px';
+            coreNode.style.top = '2000px';
+            coreNode.style.transform = 'translate(-50%, -50%)';
+
+            const centerOffset = 2000;
+            const ringRadiusSec = 350; 
+            const ringRadiusCh = 700;  
+
+            mindmapData.sections.forEach((sec, idx) => {
+                const angle = (idx * 2 * Math.PI) / mindmapData.sections.length;
+                sec.x = centerOffset + ringRadiusSec * Math.cos(angle);
+                sec.y = centerOffset + ringRadiusSec * Math.sin(angle);
+
+                const numChapters = sec.chapters.length;
+                const arcSpread = Math.PI / 4.5; 
+                const baseAngle = angle; 
+
+                sec.chapters.forEach((ch, chIdx) => {
+                    let relativeArc;
+                    if (numChapters === 1) {
+                        relativeArc = 0;
+                    } else {
+                        relativeArc = -arcSpread/2 + (chIdx * arcSpread) / (numChapters - 1);
+                    }
+                    const chAngle = baseAngle + relativeArc;
+                    ch.x = centerOffset + ringRadiusCh * Math.cos(chAngle);
+                    ch.y = centerOffset + ringRadiusCh * Math.sin(chAngle);
+                });
+            });
+        }
+
+        function findNodeData(nodeId) {
+            const sec = mindmapData.sections.find(s => s.id === nodeId);
+            if (sec) return sec;
+            for (let i = 0; i < mindmapData.sections.length; i++) {
+                const ch = mindmapData.sections[i].chapters.find(c => c.id === nodeId);
+                if (ch) return ch;
+            }
+            return null;
+        }
+
+        function renderSidebarNavigation() {
+            navigationList.innerHTML = '';
+            mindmapData.sections.forEach(sec => {
+                const isCollapsed = collapsedSections.has(sec.id);
+                const sectionEl = document.createElement('div');
+                sectionEl.className = 'rounded-lg bg-slate-900/60 overflow-hidden border border-slate-800 transition-all mb-3';
+                sectionEl.innerHTML = `
+                    <button class="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-800/40 transition-colors" onclick="toggleSectionCollapse('${sec.id}')">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${sec.color}"></span>
+                            <span class="text-xs font-bold text-slate-200 tracking-wide">${sec.title}</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="side-list-${sec.id}" class="divide-y divide-slate-800/60 overflow-hidden ${isCollapsed ? 'hidden' : ''}">
+                        ${sec.chapters.map(ch => `
+                            <button id="side-ch-${ch.id}" class="w-full text-left px-4 py-2 hover:bg-indigo-950/20 text-slate-400 hover:text-white transition-all flex items-start gap-2.5" onclick="focusOnChapterNode('${ch.id}')">
+                                <span class="font-mono text-[10px] text-indigo-400 font-semibold mt-0.5 shrink-0">CH ${ch.num}</span>
+                                <span class="text-xs leading-relaxed truncate">${ch.title}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                navigationList.appendChild(sectionEl);
+            });
+        }
+
+        function toggleSectionCollapse(secId) {
+            if (collapsedSections.has(secId)) {
+                collapsedSections.delete(secId);
+            } else {
+                collapsedSections.add(secId);
+            }
+            renderSidebarNavigation();
+            renderMindmapNodes();
+            drawConnections();
+        }
+
+        function onNodeMouseDown(e, targetObj) {
+            if (e.button !== undefined && e.button !== 0) return; 
+            e.stopPropagation();
+            
+            isDraggingCard = true;
+            isDragging = false;
+            hasMovedDrag = false;
+            draggedNodeId = targetObj.id;
+            
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            startClientX = clientX;
+            startClientY = clientY;
+            
+            cardStartX = targetObj.x;
+            cardStartY = targetObj.y;
+        }
+
+        function renderMindmapNodes() {
+            document.querySelectorAll('.dynamic-node').forEach(n => n.remove());
+
+            mindmapData.sections.forEach(sec => {
+                const isSecCollapsed = collapsedSections.has(sec.id);
+
+                const secNode = document.createElement('div');
+                secNode.id = `node-${sec.id}`;
+                secNode.className = 'dynamic-node absolute rounded-lg glass-panel px-4 py-2 border text-center transition-shadow duration-300 z-10 select-none';
+                secNode.style.borderColor = sec.color;
+                secNode.style.boxShadow = `0 4px 20px -2px ${sec.color}25`;
+                secNode.style.left = `${sec.x}px`;
+                secNode.style.top = `${sec.y}px`;
+                secNode.style.transform = 'translate(-50%, -50%)';
+                secNode.innerHTML = `
+                    <span class="text-[9px] font-bold tracking-widest text-slate-400 block uppercase mb-0.5">Section</span>
+                    <h3 class="text-xs font-black text-white uppercase whitespace-nowrap">${sec.title}</h3>
+                `;
+
+                secNode.addEventListener('mousedown', (e) => onNodeMouseDown(e, sec));
+                secNode.addEventListener('touchstart', (e) => onNodeMouseDown(e, sec));
+                secNode.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (!hasMovedDrag) {
+                        focusOnSection(sec);
+                    }
+                });
+
+                nodesContainer.appendChild(secNode);
+
+                if (!isSecCollapsed) {
+                    sec.chapters.forEach(ch => {
+                        const chNode = document.createElement('div');
+                        chNode.id = `node-${ch.id}`;
+                        chNode.className = `dynamic-node absolute rounded-lg bg-slate-900 border border-slate-800 p-3 hover:border-slate-500 transition-all duration-200 z-10 cursor-pointer w-52 select-none ${activeNodeId === ch.id ? 'node-active' : ''}`;
+                        chNode.style.left = `${ch.x}px`;
+                        chNode.style.top = `${ch.y}px`;
+                        chNode.style.transform = 'translate(-50%, -50%)';
+                        chNode.innerHTML = `
+                            <div class="flex items-center gap-1.5 mb-1 text-[9px] font-bold text-indigo-400 tracking-wider">
+                                <span class="bg-indigo-950/40 px-1 py-0.5 rounded border border-indigo-900/30">CH ${ch.num}</span>
+                            </div>
+                            <h4 class="text-xs font-bold text-slate-200 leading-normal line-clamp-2">${ch.title}</h4>
+                        `;
+
+                        chNode.addEventListener('mousedown', (e) => onNodeMouseDown(e, ch));
+                        chNode.addEventListener('touchstart', (e) => onNodeMouseDown(e, ch));
+                        chNode.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (!hasMovedDrag) {
+                                selectChapter(ch, sec);
+                            }
+                        });
+
+                        nodesContainer.appendChild(chNode);
+                    });
+                }
+            });
+        }
+
+        function drawConnections() {
+            svgCanvas.innerHTML = '';
+            const coreCenter = { x: 2000, y: 2000 };
+
+            mindmapData.sections.forEach(sec => {
+                const secX = sec.x;
+                const secY = sec.y;
+
+                const pathSec = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const dSec = `M ${coreCenter.x} ${coreCenter.y} Q ${(coreCenter.x + secX) / 2} ${(coreCenter.y + secY) / 2} ${secX} ${secY}`;
+                pathSec.setAttribute("d", dSec);
+                pathSec.setAttribute("fill", "none");
+                pathSec.setAttribute("stroke", "rgba(255, 255, 255, 0.12)");
+                pathSec.setAttribute("stroke-width", "2.5");
+                pathSec.setAttribute("class", "node-connection");
+                svgCanvas.appendChild(pathSec);
+
+                if (!collapsedSections.has(sec.id)) {
+                    sec.chapters.forEach(ch => {
+                        const pathCh = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        const dCh = `M ${secX} ${secY} Q ${(secX + ch.x) / 2} ${(secY + ch.y) / 2} ${ch.x} ${ch.y}`;
+                        pathCh.setAttribute("d", dCh);
+                        pathCh.setAttribute("fill", "none");
+                        pathCh.setAttribute("stroke", `${sec.color}45`);
+                        pathCh.setAttribute("stroke-width", "1.5");
+                        pathCh.setAttribute("class", "node-connection");
+                        svgCanvas.appendChild(pathCh);
+                    });
+                }
+            });
+        }
+
+        function selectChapter(ch, sec) {
+            activeNodeId = ch.id;
+            currentFlatIndex = flatChapters.findIndex(item => item.ch.id === ch.id);
+
+            document.querySelectorAll('.node-active').forEach(n => n.classList.remove('node-active'));
+            const activeNode = document.getElementById(`node-${ch.id}`);
+            if (activeNode) activeNode.classList.add('node-active');
+
+            document.querySelectorAll('[id^="side-ch-"]').forEach(el => el.classList.remove('bg-indigo-950/40', 'text-white'));
+            const activeSide = document.getElementById('side-ch-' + ch.id);
+            if (activeSide) activeSide.classList.add('bg-indigo-950/40', 'text-white');
+
+            showModal(ch, sec);
+        }
+
+        function showModal(ch, sec) {
+            // Reset Tab views back to Overview panel
+            switchTab('overview');
+
+            const badge = document.getElementById('detail-type-badge');
+            badge.innerText = `Section: ${sec.title}`;
+            badge.style.borderColor = `${sec.color}40`;
+            badge.style.color = sec.color;
+            badge.style.backgroundColor = `${sec.color}15`;
+
+            document.getElementById('detail-chapter-num').innerText = `CH ${ch.num}`;
+            document.getElementById('detail-title').innerText = ch.title;
+            document.getElementById('detail-quote').innerText = ch.quote;
+            
+            const author = document.getElementById('detail-author');
+            author.innerText = `— ${ch.author}`;
+            author.style.color = sec.color;
+
+            document.getElementById('detail-desc').innerText = ch.desc;
+            document.getElementById('strategy-header').style.color = sec.color;
+
+            // Reset AI outputs and chat inputs
+            document.getElementById('ai-placeholder').classList.remove('hidden');
+            document.getElementById('ai-spinner').classList.add('hidden');
+            document.getElementById('ai-text-content').classList.add('hidden');
+            document.getElementById('ai-text-content').innerHTML = '';
+            document.getElementById('ai-chat-input').value = '';
+
+            // Apply contextual colors to the custom Ask Consult CTA button
+            const chatSubmit = document.getElementById('ai-chat-submit');
+            chatSubmit.style.backgroundColor = sec.color;
+            chatSubmit.style.color = '#0f172a';
+
+            // Dynamically apply contextual section styling to modal card container
+            const card = detailPanel.querySelector('.modal-card');
+            card.style.borderColor = `${sec.color}50`;
+            card.style.boxShadow = `0 25px 50px -12px ${sec.color}35, inset 0 1px 0 0 rgba(255, 255, 255, 0.05)`;
+
+            updateModalNavButtons(sec);
+
+            detailPanel.classList.remove('opacity-0', 'pointer-events-none');
+            detailPanel.classList.add('opacity-100', 'pointer-events-auto');
+            card.classList.remove('scale-95');
+            card.classList.add('scale-100');
+        }
+
+        // Tab Switching Engine
+        function switchTab(tabName) {
+            const btnOverview = document.getElementById('tab-overview');
+            const btnAi = document.getElementById('tab-ai');
+            const panelOverview = document.getElementById('panel-overview');
+            const panelAi = document.getElementById('panel-ai');
+
+            if (tabName === 'overview') {
+                btnOverview.classList.add('border-indigo-500', 'text-indigo-400');
+                btnOverview.classList.remove('text-slate-400', 'border-transparent');
+                
+                btnAi.classList.remove('border-indigo-500', 'text-indigo-400');
+                btnAi.classList.add('text-slate-400', 'border-transparent');
+
+                panelOverview.classList.remove('hidden');
+                panelAi.classList.add('hidden');
+            } else {
+                btnAi.classList.add('border-indigo-500', 'text-indigo-400');
+                btnAi.classList.remove('text-slate-400', 'border-transparent');
+                
+                btnOverview.classList.remove('border-indigo-500', 'text-indigo-400');
+                btnOverview.classList.add('text-slate-400', 'border-transparent');
+
+                panelAi.classList.remove('hidden');
+                panelOverview.classList.add('hidden');
+            }
+        }
+
+        // Refined structural boundary crossing logic for button values
+        function updateModalNavButtons(currentSec) {
+            const prevBtn = document.getElementById('modal-prev');
+            const nextBtn = document.getElementById('modal-next');
+            
+            if (currentFlatIndex > 0) {
+                const prevItem = flatChapters[currentFlatIndex - 1];
+                prevBtn.disabled = false;
+                if (prevItem.sec.id !== currentSec.id) {
+                    prevBtn.innerHTML = `<i class="fa-solid fa-angles-left"></i> Previous Section`;
+                    prevBtn.style.backgroundColor = prevItem.sec.color;
+                } else {
+                    prevBtn.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Previous Chapter`;
+                    prevBtn.style.backgroundColor = currentSec.color;
+                }
+            } else {
+                prevBtn.disabled = true;
+                prevBtn.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Previous Chapter`;
+                prevBtn.style.backgroundColor = "";
+            }
+
+            if (currentFlatIndex < flatChapters.length - 1 && currentFlatIndex !== -1) {
+                const nextItem = flatChapters[currentFlatIndex + 1];
+                nextBtn.disabled = false;
+                if (nextItem.sec.id !== currentSec.id) {
+                    nextBtn.innerHTML = `Next Section <i class="fa-solid fa-angles-right"></i>`;
+                    nextBtn.style.backgroundColor = nextItem.sec.color;
+                } else {
+                    nextBtn.innerHTML = `Next Chapter <i class="fa-solid fa-arrow-right"></i>`;
+                    nextBtn.style.backgroundColor = currentSec.color;
+                }
+            } else {
+                nextBtn.disabled = true;
+                nextBtn.innerHTML = `Next Chapter <i class="fa-solid fa-arrow-right"></i>`;
+                nextBtn.style.backgroundColor = "";
+            }
+        }
+
+        function hideModal() {
+            detailPanel.classList.add('opacity-0', 'pointer-events-none');
+            detailPanel.classList.remove('opacity-100', 'pointer-events-auto');
+            const card = detailPanel.querySelector('.modal-card');
+            card.classList.add('scale-95');
+            card.classList.remove('scale-100');
+            
+            activeNodeId = null;
+            document.querySelectorAll('.node-active').forEach(n => n.classList.remove('node-active'));
+        }
+
+        function focusOnSection(sec) {
+            if (collapsedSections.has(sec.id)) {
+                collapsedSections.delete(sec.id);
+            } else {
+                collapsedSections.add(sec.id);
+            }
+            renderSidebarNavigation();
+            renderMindmapNodes();
+            drawConnections();
+            zoomTo(1.2, sec.x, sec.y);
+        }
+
+        // Navigate and focus on a chapter sequence target
+        function focusOnChapterNode(chId) {
+            let foundCh = null;
+            let foundSec = null;
+            mindmapData.sections.forEach(sec => {
+                const ch = sec.chapters.find(c => c.id === chId);
+                if (ch) {
+                    foundCh = ch;
+                    foundSec = sec;
+                }
+            });
+
+            if (foundCh && foundSec) {
+                if (collapsedSections.has(foundSec.id)) {
+                    collapsedSections.delete(foundSec.id);
+                    renderSidebarNavigation();
+                    renderMindmapNodes();
+                    drawConnections();
+                }
+
+                selectChapter(foundCh, foundSec);
+                zoomTo(1.35, foundCh.x, foundCh.y);
+            }
+        }
+
+        // Robust Markdown to HTML translator for Gemini responses
+        function formatMarkdownToHTML(text) {
+            if (!text) return "";
+            let html = text;
+            // Bold matching
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Bullet matches
+            html = html.replace(/(?:^|<br>)\s*[-*]\s+(.*?)(?=<br>|$)/g, '<div class="flex items-start gap-2 my-1"><span class="text-indigo-400 font-bold">•</span><span>$1</span></div>');
+            // Line break processing
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        }
+
+        // Exponential backoff runner for Gemini Endpoint Connections
+        async function runGeminiTask(promptText, systemPrompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: promptText }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        return data.candidates?.[0]?.content?.parts?.[0]?.text || "Empty response from Gemini.";
+                    }
+                } catch (err) {
+                    // Do not log retry exceptions to console as per guidelines
+                }
+                if (i < 4) {
+                    await new Promise(res => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+            throw new Error("Unable to synthesize guidance. Please double check connection protocol or try again.");
+        }
+
+        // ✨ Trigger Custom Workbook Generation
+        async function handleWorkbookGeneration() {
+            if (currentFlatIndex === -1) return;
+            const currentItem = flatChapters[currentFlatIndex];
+            const ch = currentItem.ch;
+            const sec = currentItem.sec;
+
+            const placeholder = document.getElementById('ai-placeholder');
+            const spinner = document.getElementById('ai-spinner');
+            const textContent = document.getElementById('ai-text-content');
+
+            placeholder.classList.add('hidden');
+            textContent.classList.add('hidden');
+            spinner.classList.remove('hidden');
+
+            const systemPrompt = "You are a world-class clinical therapist and executive coach specializing in Acceptance and Commitment Therapy (ACT), Cognitive Reconditioning, and Stoicism. You write in a deep, highly impactful, and non-cliché tone similar to Brianna Wiest or Susan Jeffers.";
+            const prompt = `Synthesize a highly customized Reflection Workbook for "Chapter ${ch.num}: ${ch.title}" from Section "${sec.title}". 
+The chapter is framed by this quote: "${ch.quote}" and this strategy: "${ch.desc}".
+Provide:
+1) **✨ Reflection Prompt**: A deeply challenging journal query aimed at exposing a hidden mental blindspot.
+2) **✨ Immediate Micro-Habit**: One 2-minute actionable daily ritual to manifest this theme physically.
+3) **✨ Stoic Paradox**: A brief psychological reframing insight. Keep the formatting exceptionally clean and concise, suitable for a scrollable box.`;
+
+            try {
+                const responseText = await runGeminiTask(prompt, systemPrompt);
+                textContent.innerHTML = formatMarkdownToHTML(responseText);
+                spinner.classList.add('hidden');
+                textContent.classList.remove('hidden');
+            } catch (err) {
+                spinner.classList.add('hidden');
+                textContent.innerHTML = `<span class="text-rose-500 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${err.message}</span>`;
+                textContent.classList.remove('hidden');
+            }
+        }
+
+        // ✨ Consult Psychological AI Guide Chat Trigger
+        async function handleAIQuickChat() {
+            const inputEl = document.getElementById('ai-chat-input');
+            const userQuery = inputEl.value.trim();
+            if (!userQuery || currentFlatIndex === -1) return;
+
+            const currentItem = flatChapters[currentFlatIndex];
+            const ch = currentItem.ch;
+            const sec = currentItem.sec;
+
+            const placeholder = document.getElementById('ai-placeholder');
+            const spinner = document.getElementById('ai-spinner');
+            const textContent = document.getElementById('ai-text-content');
+
+            inputEl.value = '';
+            placeholder.classList.add('hidden');
+            textContent.classList.add('hidden');
+            spinner.classList.remove('hidden');
+
+            const systemPrompt = "You are a warm, highly perceptive psychological guide and Stoic advisor. Answer the user's queries in a direct, highly grounded, and actionable manner. Avoid platitudes and focus on evidence-backed cognitive behavioral actions.";
+            const prompt = `Under the context of "Chapter ${ch.num}: ${ch.title}" (Core Strategy: "${ch.desc}"), a user is seeking guidance and asks: "${userQuery}"
+Provide a brief, compassionate, yet highly strategic response (under 120 words) detailing a direct psychological reframing method and one immediate physical action.`;
+
+            try {
+                const responseText = await runGeminiTask(prompt, systemPrompt);
+                textContent.innerHTML = formatMarkdownToHTML(responseText);
+                spinner.classList.add('hidden');
+                textContent.classList.remove('hidden');
+            } catch (err) {
+                spinner.classList.add('hidden');
+                textContent.innerHTML = `<span class="text-rose-500 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>${err.message}</span>`;
+                textContent.classList.remove('hidden');
+            }
+        }
+
+        function setupEventListeners() {
+            workspace.addEventListener('mousedown', (e) => {
+                if (isDraggingCard) return;
+                isDragging = true;
+                startX = e.clientX - panX;
+                startY = e.clientY - panY;
+            });
+
+            workspace.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = 1.08;
+                const factor = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
+                
+                const rect = workspace.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                const canvasMouseX = (mouseX - panX) / scale;
+                const canvasMouseY = (mouseY - panY) / scale;
+                
+                let newScale = scale * factor;
+                newScale = Math.max(0.15, Math.min(2.5, newScale));
+                
+                panX = mouseX - (canvasMouseX * newScale);
+                panY = mouseY - (canvasMouseY * newScale);
+                scale = newScale;
+                
+                applyTransform();
+            }, { passive: false });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isDraggingCard) {
+                    const clientX = e.clientX;
+                    const clientY = e.clientY;
+                    const deltaX = (clientX - startClientX) / scale;
+                    const deltaY = (clientY - startClientY) / scale;
+                    
+                    if (Math.abs(clientX - startClientX) > 4 || Math.abs(clientY - startClientY) > 4) {
+                        hasMovedDrag = true;
+                    }
+                    
+                    const targetObj = findNodeData(draggedNodeId);
+                    if (targetObj) {
+                        targetObj.x = cardStartX + deltaX;
+                        targetObj.y = cardStartY + deltaY;
+                        
+                        const nodeEl = document.getElementById(`node-${draggedNodeId}`);
+                        if (nodeEl) {
+                            nodeEl.style.left = `${targetObj.x}px`;
+                            nodeEl.style.top = `${targetObj.y}px`;
+                        }
+                        drawConnections();
+                    }
+                } else if (isDragging) {
+                    panX = e.clientX - startX;
+                    panY = e.clientY - startY;
+                    applyTransform();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDraggingCard) {
+                    isDraggingCard = false;
+                    draggedNodeId = null;
+                }
+                isDragging = false;
+            });
+
+            workspace.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    isDragging = false;
+                    isDraggingCard = false;
+                    initialDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    initialScale = scale;
+                    initialPanX = panX;
+                    initialPanY = panY;
+                } else if (e.touches.length === 1 && !isDraggingCard) {
+                    isDragging = true;
+                    startX = e.touches[0].clientX - panX;
+                    startY = e.touches[0].clientY - panY;
+                }
+            }, { passive: true });
+
+            workspace.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const factor = dist / initialDistance;
+                    
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    const rect = workspace.getBoundingClientRect();
+                    const relativeMidX = midX - rect.left;
+                    const relativeMidY = midY - rect.top;
+
+                    const canvasMidX = (relativeMidX - initialPanX) / initialScale;
+                    const canvasMidY = (relativeMidY - initialPanY) / initialScale;
+
+                    let newScale = initialScale * factor;
+                    newScale = Math.max(0.15, Math.min(2.5, newScale));
+
+                    panX = relativeMidX - (canvasMidX * newScale);
+                    panY = relativeMidY - (canvasMidY * newScale);
+                    scale = newScale;
+
+                    applyTransform();
+                } else if (isDraggingCard && e.touches.length === 1) {
+                    const clientX = e.touches[0].clientX;
+                    const clientY = e.touches[0].clientY;
+                    const deltaX = (clientX - startClientX) / scale;
+                    const deltaY = (clientY - startClientY) / scale;
+                    
+                    if (Math.abs(clientX - startClientX) > 4 || Math.abs(clientY - startClientY) > 4) {
+                        hasMovedDrag = true;
+                    }
+                    
+                    const targetObj = findNodeData(draggedNodeId);
+                    if (targetObj) {
+                        targetObj.x = cardStartX + deltaX;
+                        targetObj.y = cardStartY + deltaY;
+                        
+                        const nodeEl = document.getElementById(`node-${draggedNodeId}`);
+                        if (nodeEl) {
+                            nodeEl.style.left = `${targetObj.x}px`;
+                            nodeEl.style.top = `${targetObj.y}px`;
+                        }
+                        drawConnections();
+                    }
+                } else if (isDragging && e.touches.length === 1) {
+                    panX = e.touches[0].clientX - startX;
+                    panY = e.touches[0].clientY - startY;
+                    applyTransform();
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchend', () => {
+                if (isDraggingCard) {
+                    isDraggingCard = false;
+                    draggedNodeId = null;
+                }
+                isDragging = false;
+            });
+
+            // Interactive Click-to-Copy Engine compatible with Iframe Security restrictions
+            document.getElementById('quote-container').addEventListener('click', () => {
+                const quoteText = document.getElementById('detail-quote').innerText;
+                const authorText = document.getElementById('detail-author').innerText;
+                const textToCopy = `"${quoteText}" ${authorText}`;
+
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = textToCopy;
+                tempTextArea.style.position = "fixed";
+                tempTextArea.style.top = "0";
+                tempTextArea.style.left = "0";
+                tempTextArea.style.opacity = "0";
+                document.body.appendChild(tempTextArea);
+                
+                tempTextArea.focus();
+                tempTextArea.select();
+
+                let copied = false;
+                try {
+                    copied = document.execCommand('copy');
+                } catch (err) {
+                    console.error('Fallback copy command execution failed: ', err);
+                }
+                document.body.removeChild(tempTextArea);
+
+                if (copied) {
+                    const tooltip = document.getElementById('quote-tooltip');
+                    tooltip.innerText = "Copied!";
+                    tooltip.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                    tooltip.classList.add('bg-emerald-600', 'text-white', 'border-emerald-500');
+
+                    setTimeout(() => {
+                        tooltip.innerText = "Click to copy quote";
+                        tooltip.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                        tooltip.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-500');
+                    }, 1400);
+                }
+            });
+
+            // Modal Tab click binds
+            document.getElementById('tab-overview').addEventListener('click', () => switchTab('overview'));
+            document.getElementById('tab-ai').addEventListener('click', () => switchTab('ai'));
+
+            // Gemini trigger binds
+            document.getElementById('btn-generate-workbook').addEventListener('click', handleWorkbookGeneration);
+            document.getElementById('ai-chat-submit').addEventListener('click', handleAIQuickChat);
+            document.getElementById('ai-chat-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') handleAIQuickChat();
+            });
+
+            document.getElementById('modal-prev').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentFlatIndex > 0) {
+                    const prevItem = flatChapters[currentFlatIndex - 1];
+                    focusOnChapterNode(prevItem.ch.id);
+                }
+            });
+
+            document.getElementById('modal-next').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentFlatIndex < flatChapters.length - 1 && currentFlatIndex !== -1) {
+                    const nextItem = flatChapters[currentFlatIndex + 1];
+                    focusOnChapterNode(nextItem.ch.id);
+                }
+            });
+
+            document.getElementById('zoom-reset').addEventListener('click', () => {
+                centerWorkspace();
+            });
+
+            document.getElementById('toggle-sidebar').addEventListener('click', () => {
+                const sidebar = document.getElementById('sidebar');
+                const toggleIcon = document.querySelector('#toggle-sidebar i');
+                
+                sidebar.classList.toggle('hidden');
+                toggleIcon.className = sidebar.classList.contains('hidden') ? 'fa-solid fa-bars' : 'fa-solid fa-xmark';
+
+                setTimeout(() => {
+                    centerWorkspace();
+                    drawConnections();
+                }, 150);
+            });
+
+            document.getElementById('btn-expand-all').addEventListener('click', () => {
+                collapsedSections.clear();
+                renderSidebarNavigation();
+                renderMindmapNodes();
+                drawConnections();
+            });
+
+            document.getElementById('btn-collapse-all').addEventListener('click', () => {
+                mindmapData.sections.forEach(sec => collapsedSections.add(sec.id));
+                renderSidebarNavigation();
+                renderMindmapNodes();
+                drawConnections();
+            });
+
+            document.getElementById('close-detail').addEventListener('click', () => {
+                hideModal();
+            });
+
+            detailPanel.addEventListener('click', (e) => {
+                if (e.target === detailPanel) {
+                    hideModal();
+                }
+            });
+
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase().trim();
+                if (!term) {
+                    document.querySelectorAll('.dynamic-node').forEach(node => node.style.opacity = '1');
+                    return;
+                }
+
+                mindmapData.sections.forEach(sec => {
+                    const matchedChapters = sec.chapters.filter(ch => 
+                        ch.title.toLowerCase().includes(term) || 
+                        ch.author.toLowerCase().includes(term) || 
+                        ch.quote.toLowerCase().includes(term) || 
+                        ch.desc.toLowerCase().includes(term)
+                    );
+
+                    if (matchedChapters.length > 0 && collapsedSections.has(sec.id)) {
+                        collapsedSections.delete(sec.id);
+                    }
+                });
+
+                renderSidebarNavigation();
+                renderMindmapNodes();
+                drawConnections();
+
+                mindmapData.sections.forEach(sec => {
+                    const matchesSecName = sec.title.toLowerCase().includes(term);
+                    const secNode = document.getElementById(`node-${sec.id}`);
+                    if (secNode) {
+                        secNode.style.opacity = matchesSecName ? '1' : '0.25';
+                    }
+
+                    sec.chapters.forEach(ch => {
+                        const chNode = document.getElementById(`node-${ch.id}`);
+                        if (chNode) {
+                            const isMatch = ch.title.toLowerCase().includes(term) || 
+                                            ch.author.toLowerCase().includes(term) || 
+                                            ch.quote.toLowerCase().includes(term) || 
+                                            ch.desc.toLowerCase().includes(term);
+                            chNode.style.opacity = isMatch ? '1' : '0.15';
+                        }
+                    });
+                });
+            });
+        }
+
+        function applyTransform() {
+            nodesContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+            svgCanvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        }
+
+        function centerWorkspace() {
+            scale = 0.55;
+            const viewportWidth = workspace.clientWidth;
+            const viewportHeight = workspace.clientHeight;
+            
+            panX = (viewportWidth / 2) - (2000 * scale);
+            panY = (viewportHeight / 2) - (2000 * scale);
+            
+            applyTransform();
+        }
+
+        function zoomTo(targetScale, absoluteX, absoluteY) {
+            const viewportWidth = workspace.clientWidth;
+            const viewportHeight = workspace.clientHeight;
+
+            scale = targetScale;
+            panX = (viewportWidth / 2) - (absoluteX * scale);
+            panY = (viewportHeight / 2) - (absoluteY * scale);
+
+            applyTransform();
+        }
+    </script>
+</body>
+</html>
